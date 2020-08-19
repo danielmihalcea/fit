@@ -1,0 +1,175 @@
+<!DOCTYPE html>
+<html>
+	<head>
+        <title>.FIT</title>
+        <meta charset="UTF-8">
+    </head>
+    <body>
+    <input type="file" id="input" onchange="loadFIT(this.files[0])"><p>
+    <script>
+        // http://www.onicos.com/staff/iz/amuse/javascript/expert/utf.txt
+
+        /* utf.js - UTF-8 <=> UTF-16 convertion
+        *
+        * Copyright (C) 1999 Masanao Izumo <iz@onicos.co.jp>
+        * Version: 1.0
+        * LastModified: Dec 25 1999
+        * This library is free.  You can redistribute it and/or modify it.
+        */
+
+        function Utf8ArrayToStr(array) {
+            var out, i, len, c;
+            var char2, char3;
+
+            out = "";
+            len = array.length;
+            i = 0;
+            while(i < len) {
+            c = array[i++];
+            switch(c >> 4)
+            { 
+            case 0: case 1: case 2: case 3: case 4: case 5: case 6: case 7:
+                // 0xxxxxxx
+                out += String.fromCharCode(c);
+                break;
+            case 12: case 13:
+                // 110x xxxx   10xx xxxx
+                char2 = array[i++];
+                out += String.fromCharCode(((c & 0x1F) << 6) | (char2 & 0x3F));
+                break;
+            case 14:
+                // 1110 xxxx  10xx xxxx  10xx xxxx
+                char2 = array[i++];
+                char3 = array[i++];
+                out += String.fromCharCode(((c & 0x0F) << 12) |
+                            ((char2 & 0x3F) << 6) |
+                            ((char3 & 0x3F) << 0));
+                break;
+            }
+            }
+
+            return out;
+        }
+
+        const HEADER_TYPE = 0b10000000;
+        const MESSAGE_TYPE = 0b01000000;
+        const LOCAL_MESSAGE_TYPE = 0b00001111;
+        var fr = new FileReader(); // déclare un fichier
+
+        var mesg_num = [];
+        mesg_num[0] = 'file_id';
+        mesg_num[1] = 'capabilities';
+        mesg_num[2] = 'device_settings';
+        mesg_num[3] = 'user_profile';
+        mesg_num[4] = 'hrm_profile';
+        mesg_num[5] = 'sdm_profile';
+        mesg_num[6] = 'bike_profile';
+        mesg_num[7] = 'zones_target';
+        mesg_num[8] = 'hr_zone';
+        mesg_num[9] = 'power_zone';
+        mesg_num[10] = 'met_zone';
+        mesg_num[12] = 'sport';
+        mesg_num[15] = 'goal';
+        mesg_num[18] = 'session';
+        mesg_num[19] = 'lap';
+        mesg_num[20] = 'record';
+        mesg_num[21] = 'event';
+        mesg_num[23] = 'device_info';
+        mesg_num[26] = 'workout';
+        mesg_num[27] = 'workout_step';
+        mesg_num[49] = 'file_creator';
+        
+        function loadFIT(f) {
+            fr.readAsArrayBuffer(f);
+        }
+        fr.onload = function(e) { // quand le fichier est chargé
+            let fit_hl = new DataView(fr["result"], 0, 1).getUint8(0); // head lenght
+            pv = new DataView(fr["result"], 2, 2).getUint16(0,true);
+            let fit_sig = String.fromCharCode.apply(null, new Uint8Array(fr["result"], 8, 4));
+            let fit_dl = new DataView(fr["result"], 4, 4).getUint32(0,true); // data lenght
+            let fit_fl = fit_hl + fit_dl
+            let fit_data = [];
+            let endian = true;
+            for (let i = fit_hl; i < fit_fl; ) {
+                let h = new DataView(fr["result"], i++, 1).getUint8(0);
+                let fit_lmt = 0;
+                let compr = false;
+                let def = true;
+                if (h & HEADER_TYPE) { // compressed timestamp header
+                    document.writeln('<p style="background-color:#ffbfb3" title="'+i+'">compressed<br>');
+                    fit_lmt = (h & 0b00110000)>>>4;
+                    compr = true; def = false;
+                } else { // normal header
+                    document.writeln('<p style="background-color:#d1ffb3" title="'+i+'">normal<br>');
+                    fit_lmt = h & 0b00001111; def = !! (h & MESSAGE_TYPE);
+                }
+                document.writeln('local message type:'+fit_lmt+'<br>');
+                if (def) {
+                    document.writeln('definition message<br>');
+                    i++;
+                    let fit_arch = new DataView(fr["result"], i++, 1).getUint8(0);
+                    if (fit_arch === 1) {
+                        document.writeln('Big Endian<br>');
+                        endian = false;
+                    } else {
+                        document.writeln('Little Endian<br>');
+                        endian = true;
+                    }
+                    let fit_GMN = new DataView(fr["result"], i, 2).getUint16(0,endian);i+=2;
+                    document.writeln('Global Message Number:'+fit_GMN+' '+mesg_num[fit_GMN]+'<br>');
+                    let fit_fields = new DataView(fr["result"], i++, 1).getUint8(0);
+                    document.writeln('Fields:'+fit_fields+'<br>');
+                    let tmp = [];
+                    for (let j=0;j<fit_fields;j++){
+                        let fit_fd0 = new DataView(fr["result"], i++, 1).getUint8(0);
+                        let fit_fd1 = new DataView(fr["result"], i++, 1).getUint8(0);
+                        let fit_fd2 = new DataView(fr["result"], i++, 1).getUint8(0);
+                        document.writeln('FDN:'+fit_fd0+' ; size:'+fit_fd1+' ; BT:'+fit_fd2+'<br>');
+                        tmp.push([fit_fd0, fit_fd1, fit_fd2]);
+                    }
+                    fit_data[fit_lmt] = tmp;
+                    console.log(fit_data);
+                } else {
+                    document.writeln('data message<br>');
+                    let tmp = fit_data[fit_lmt];
+                    for (j=0; j<tmp.length; j++){
+                        field = tmp[j];
+                        switch (field[2]) {
+                            case 140:
+                                f_val = new DataView(fr["result"], i, 4).getUint32(0, endian);//i+=4;
+                                break;
+                            case 134:
+                                f_val = new DataView(fr["result"], i, 4).getUint32(0, endian);//i+=4;
+                                break;
+                            case 133:
+                                f_val = new DataView(fr["result"], i, 4).getInt32(0, endian);//i+=4;
+                                break;
+                            case 132:
+                                f_val = new DataView(fr["result"], i, 2).getUint16(0, endian);//i+=2;
+                                break;
+                            case 7:
+                                // f_val = new DataView(fr["result"], i, field[1]).getUint8(0, endian);
+                                // a = f_val = String.fromCharCode.apply(null, new Uint8Array(fr["result"], i, field[1]-1))
+                                b = f_val = Utf8ArrayToStr(new Uint8Array(fr["result"], i, field[1]-1));
+                                // i+=field[1];
+                                break;
+                            case 0:
+                                f_val = new DataView(fr["result"], i, 1).getUint8(0, endian);//i+=1;
+                                break;
+                            default:
+                                f_val=0;
+                                break;
+                        }
+                        i+=field[1];
+                        document.writeln('f:'+f_val+' ');
+
+                    }
+                    // fit_data = [];
+                }
+                document.writeln('</p><hr>');
+                // if (i>100) break;
+            }
+        }
+    </script>
+    </body>
+</html>
