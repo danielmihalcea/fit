@@ -77,15 +77,16 @@
         mesg_num[23] = 'device_info';
         mesg_num[26] = 'workout';
         mesg_num[27] = 'workout_step';
+        mesg_num[34] = 'activity';
         mesg_num[49] = 'file_creator';
         
         function loadFIT(f) {
             fr.readAsArrayBuffer(f);
         }
         fr.onload = function(e) { // quand le fichier est chargé
-            let fit_hl = new DataView(fr["result"], 0, 1).getUint8(0); // head lenght
-            pv = new DataView(fr["result"], 2, 2).getUint16(0,true);
-            let fit_sig = String.fromCharCode.apply(null, new Uint8Array(fr["result"], 8, 4));
+            let fit_hl = new DataView(fr["result"], 0, 1).getUint8(0); // header lenght
+            // pv = new DataView(fr["result"], 2, 2).getUint16(0,true);
+            let fit_sig = String.fromCharCode.apply(null, new Uint8Array(fr["result"], 8, 4)); // signature : .FIT"
             let fit_dl = new DataView(fr["result"], 4, 4).getUint32(0,true); // data lenght
             let fit_fl = fit_hl + fit_dl
             let fit_data = [];
@@ -134,41 +135,44 @@
                     let tmp = fit_data[fit_lmt];
                     for (j=0; j<tmp.length; j++){
                         field = tmp[j];
-                        switch (field[2]) {
-                            case 140:
-                                f_val = new DataView(fr["result"], i, 4).getUint32(0, endian);//i+=4;
-                                break;
-                            case 134:
-                                f_val = new DataView(fr["result"], i, 4).getUint32(0, endian);//i+=4;
-                                break;
-                            case 133:
-                                f_val = new DataView(fr["result"], i, 4).getInt32(0, endian);//i+=4;
-                                break;
-                            case 132:
-                                f_val = new DataView(fr["result"], i, 2).getUint16(0, endian);//i+=2;
-                                break;
-                            case 7:
-                                // f_val = new DataView(fr["result"], i, field[1]).getUint8(0, endian);
-                                // a = f_val = String.fromCharCode.apply(null, new Uint8Array(fr["result"], i, field[1]-1))
-                                b = f_val = Utf8ArrayToStr(new Uint8Array(fr["result"], i, field[1]-1));
-                                // i+=field[1];
-                                break;
-                            case 0:
-                                f_val = new DataView(fr["result"], i, 1).getUint8(0, endian);//i+=1;
-                                break;
-                            default:
-                                f_val=0;
-                                break;
-                        }
+                        f_val = getData(fr["result"], i, field[2], endian);
                         i+=field[1];
                         document.writeln('f:'+f_val+' ');
 
                     }
-                    // fit_data = [];
                 }
                 document.writeln('</p><hr>');
-                // if (i>100) break;
             }
+        }
+
+        function getData(f, i, t, e) {
+            switch (t) {
+                case 140:
+                    f_val = new DataView(f, i, 4).getUint32(0, e);
+                    break;
+                case 134:
+                    f_val = new DataView(f, i, 4).getUint32(0, e);
+                    break;
+                case 133:
+                    f_val = new DataView(f, i, 4).getInt32(0, e);
+                    break;
+                case 132:
+                    f_val = new DataView(f, i, 2).getUint16(0, e);
+                    break;
+                case 7:
+                    f_val = Utf8ArrayToStr(new Uint8Array(f, i, field[1]-1));
+                    break;
+                case 2:
+                    f_val = new DataView(f, i, 1).getUint8(0, e);
+                    break;
+                case 0:
+                    f_val = new DataView(f, i, 1).getUint8(0, e);
+                    break;
+                default:
+                    f_val='*';
+                    break;
+            }
+            return f_val;
         }
     </script>
     </body>
