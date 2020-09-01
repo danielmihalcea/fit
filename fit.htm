@@ -6,6 +6,7 @@
     </head>
     <body>
     <input type="file" id="input" onchange="loadFIT(this.files[0])"><p>
+        <div id="fit"></div>
     <script>
         // http://www.onicos.com/staff/iz/amuse/javascript/expert/utf.txt
 
@@ -84,6 +85,8 @@
             fr.readAsArrayBuffer(f);
         }
         var fit_definition = [];
+        var div_fit = document.getElementById('fit');
+        var fit_out = '';
         fr.onprogress = function(data) {
             if (data.lengthComputable) {                                            
                 var progress = parseInt( ((data.loaded / data.total) * 100), 10 );
@@ -96,7 +99,6 @@
             let fit_sign = String.fromCharCode.apply(null, new Uint8Array(fr["result"], 8, 4)); // signature : .FIT"
             let fit_data_len = new DataView(fr["result"], 4, 4).getUint32(0,true); // data lenght
             let fit_file_len = fit_head_len + fit_data_len
-            // let fit_data = [];
             let endian = true;
             for (let i = fit_head_len; i < fit_file_len; ) { // we run through the data
                 let h = new DataView(fr["result"], i++, 1).getUint8(0);
@@ -104,56 +106,68 @@
                 let compr = false;
                 let def = true;
                 if (h & HEADER_TYPE) { // compressed timestamp header
-                    document.writeln('<p style="background-color:#ffbfb3" title="'+i+'">compressed<br>');
+                        fit_out+= '<p style="background-color:#ffbfb3" title="'+i+'">compressed<br>';
                     fit_lmt = (h & 0b00110000)>>>4;
                     compr = true; def = false;
                 } else { // normal header
-                    document.writeln('<p style="background-color:#d1ffb3" title="'+i+'">normal<br>');
+                        fit_out+='<p style="background-color:#d1ffb3" title="'+i+'">normal<br>';
                     fit_lmt = h & 0b00001111; def = !! (h & MESSAGE_TYPE);
                 }
-                document.writeln('local message type:'+fit_lmt+'<br>');
+                fit_out+= 'local message type:'+fit_lmt+'<br>';
                 if (def) { // definition
-                    document.writeln('definition message<br>');
+                    fit_out+= 'definition message<br>';
                     i++;
                     let fit_arch = new DataView(fr["result"], i++, 1).getUint8(0); // architecture type : little or big endian
                     if (fit_arch === 1) {
-                        document.writeln('Big Endian<br>');endian = false;
+                        fit_out+= 'Big Endian<br>';endian = false;
                     } else {
-                        document.writeln('Little Endian<br>');endian = true;
+                        fit_out+= 'Little Endian<br>';endian = true;
                     }
                     let fit_GMN = new DataView(fr["result"], i, 2).getUint16(0,endian);i+=2;
-                    document.writeln('Global Message Number:'+fit_GMN+' '+mesg_num[fit_GMN]+'<br>');
+                    fit_out+= 'Global Message Number:'+fit_GMN+' '+mesg_num[fit_GMN]+'<br>';
                     let fit_fields = new DataView(fr["result"], i++, 1).getUint8(0);
-                    document.writeln('Fields:'+fit_fields+'<br>');
+                    fit_out+= 'Fields:'+fit_fields+'<br>';
                     let tmp = [];
                     for (let j=0;j<fit_fields;j++){
                         let fit_fd0 = new DataView(fr["result"], i++, 1).getUint8(0);
                         let fit_fd1 = new DataView(fr["result"], i++, 1).getUint8(0);
                         let fit_fd2 = new DataView(fr["result"], i++, 1).getUint8(0);
-                        document.writeln('FDN:'+fit_fd0+' ; size:'+fit_fd1+' ; BT:'+fit_fd2+'<br>');
+                        fit_out+= 'FDN:'+fit_fd0+' ; size:'+fit_fd1+' ; BT:'+fit_fd2+'<br>';
                         tmp.push([fit_fd0, fit_fd1, fit_fd2]);
                     }
                     fit_definition[fit_lmt] = [[fit_GMN], tmp]
-                    // fit_data[fit_lmt] = tmp;
-                    // console.log(fit_data);
                 } else {
-                    document.writeln('data message<br>');
-                    // let tmp = fit_data[fit_lmt];
+                    fit_out+= 'data message<br>';
                     let fit_GMN = fit_definition[fit_lmt][0];
                     let tmp = fit_definition[fit_lmt][1];
-                    document.writeln('Global Message Number:'+fit_GMN+' '+mesg_num[fit_GMN]+'<br>');
+                    fit_out+= 'Global Message Number:'+fit_GMN+' '+mesg_num[fit_GMN]+'<br>';
                     for (j=0; j<tmp.length; j++){
                         field = tmp[j];
                         f_val = getData(fr["result"], i, field[2], endian);
+                        if (fit_GMN == '20') {
+                            if (field[0] == 253) { // timestamp
+                                let tmp = getData(fr["result"], i, field[2], endian);
+                                f_val = new Date(631065600000+tmp*1000)
+                            } else if (field[0] == 0) { // latitude
+                                f_val = f_val * ( 180 / 2147483648 );
+                            } else if (field[0] == 1) { // longitude
+                                f_val = f_val * ( 180 / 2147483648 );
+                            } else if (field[0] == 5) { // distance
+                                f_val = f_val / 100;
+                            } else if (field[0] == 2) { // altitude
+                                f_val = f_val / 5 - 500;
+                            }
+                        }
                         i+=field[1];
-                        document.writeln('f:'+f_val+' ');
+                        fit_out+= 'f:'+f_val+' ';
 
                     }
                 }
-                document.writeln('</p><hr>');
+                fit_out+= '</p><hr>';
             }
+            div_fit.innerHTML = fit_out;
         }
-
+        
         function getData(f, i, t, e) {
             switch (t) {
                 case 140:
