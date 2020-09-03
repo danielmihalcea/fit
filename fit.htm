@@ -149,13 +149,15 @@
                                 let tmp = getData(fr["result"], i, field[2], endian);
                                 f_val = new Date(631065600000+tmp*1000)
                             } else if (field[0] == 0) { // latitude
-                                f_val = f_val * ( 180 / 2147483648 );
+                                f_val = f_val * ( 180 / 2147483648 ) + "°";
                             } else if (field[0] == 1) { // longitude
-                                f_val = f_val * ( 180 / 2147483648 );
+                                f_val = f_val * ( 180 / 2147483648 ) + "°";
                             } else if (field[0] == 5) { // distance
-                                f_val = f_val / 100;
+                                f_val = f_val / 100 + "m";
                             } else if (field[0] == 2) { // altitude
-                                f_val = f_val / 5 - 500;
+                                f_val = f_val / 5 - 500 + "m";
+                            } else if (field[0] == 29) { // altitude
+                                f_val = f_val + "W";
                             }
                         }
                         i+=field[1];
