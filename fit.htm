@@ -144,30 +144,7 @@
                     for (j=0; j<tmp.length; j++){
                         field = tmp[j];
                         f_val = getData(fr["result"], i, field[2], endian);
-                        if (fit_GMN == '20') {
-                            if (field[0] == 253) { // timestamp
-                                let tmp = getData(fr["result"], i, field[2], endian);
-                                f_val = new Date(631065600000+tmp*1000)
-                            } else if (field[0] == 0) { // latitude
-                                f_val = f_val * ( 180 / 2147483648 ) + "°";
-                            } else if (field[0] == 1) { // longitude
-                                f_val = f_val * ( 180 / 2147483648 ) + "°";
-                            } else if (field[0] == 2) { // altitude
-                                f_val = f_val / 5 - 500 + "m";
-                            } else if (field[0] == 3) { // heart rate
-                                f_val = f_val + " bpm";
-                            } else if (field[0] == 4) { // cadence
-                                f_val = f_val + " rpm";
-                            } else if (field[0] == 5) { // distance
-                                f_val = f_val / 100 + "m";
-                            } else if (field[0] == 6) { // speed
-                                f_val = f_val / 1000 + "m/s (" + (f_val*0.0036) + "km/h)";
-                            } else if (field[0] == 7) { // power
-                                f_val = f_val + "W";
-                            } else if (field[0] == 29) { // cumulated power
-                                f_val = f_val + "W";
-                            }
-                        }
+                        f_val = processData(f_val, fit_GMN, field[0]);
                         i+=field[1];
                         fit_out+= 'f:'+f_val+' ';
 
@@ -178,6 +155,49 @@
             div_fit.innerHTML = fit_out;
         }
         
+        function processData(data, global_message_number, field_definition_number) { // process the data according to the defined type
+            let final_data = 0;
+            if (global_message_number == '20') { // record
+                switch (field_definition_number) {
+                    case 253: // timestamp
+                        final_data = new Date(631065600000+data*1000);
+                        break;
+                    case 0: // latitude
+                        final_data = f_val * ( 180 / 2147483648 ) + "°";
+                        break;
+                    case 1: // longitude
+                        final_data = f_val * ( 180 / 2147483648 ) + "°";
+                        break;
+                    case 2: // altitude
+                        final_data = f_val / 5 - 500 + "m";
+                        break;
+                    case 3: // heart rate
+                        final_data = f_val + " bpm";
+                        break;
+                    case 4: // cadence
+                        final_data = f_val + " rpm";
+                        break;
+                    case 5: // distance
+                        final_data = f_val / 100 + "m";
+                        break;
+                    case 6: // speed
+                        final_data = f_val / 1000 + "m/s (" + (f_val*0.0036) + "km/h)";
+                        break;
+                    case 7: // power
+                        final_data = f_val + "W";
+                        break;
+                    case 29: // cumulated power
+                        final_data = f_val + "W";
+                        break;
+                    default: // unknown
+                        final_data = data;
+                        break;
+                }
+            } else {
+                final_data = data;
+            }
+            return final_data;
+        }
         function getData(f, i, t, e) { // get the data, file, index, type, endian
             switch (t) {
                 case 140:
